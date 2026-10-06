@@ -8,6 +8,8 @@ THRUST, ROTATE_SPEED, BURN_RATE, FUEL_MAX = 60.0, 2.4, 22.0, 300.0
 MAX_SPEED_X, MAX_SPEED_Y, MAX_ANGLE = 25.0, 40.0, 0.25
 FOOT = 12
 
+landing_fireworks = []
+
 
 def ship_color(fuel_ratio):
     """Return an (r, g, b) hull colour for the given fuel ratio (1.0 = full), or None for the default."""
@@ -22,7 +24,19 @@ def ship_color(fuel_ratio):
 
 def on_landing(score):
     """Called after a successful landing with the points just earned; add fireworks or bonuses here."""
-    pass
+    global landing_fireworks
+    count = 18 if score >= 500 else 12
+    landing_fireworks = [
+        {
+            "x": random.randint(120, WIDTH - 120),
+            "y": random.randint(120, HEIGHT // 2),
+            "vx": random.uniform(-35, 35),
+            "vy": random.uniform(-35, 35),
+            "life": random.uniform(0.7, 1.2),
+            "max_life": 1.2,
+        }
+        for _ in range(count)
+    ]
 
 
 def bonus_life_threshold():
@@ -102,6 +116,7 @@ class Game:
         self.message = f"Crashed: {reason}!  " + ("Space = retry" if self.lives > 0 else "Game over - R = restart")
 
     def update(self, dt, keys):
+        global landing_fireworks
         if self.state != "fly":
             return
         threshold = bonus_life_threshold()
@@ -121,6 +136,11 @@ class Game:
         self.pos.y = max(-200, self.pos.y)
         if self.pos.y + FOOT >= ground_y(self.heights, self.pos.x):
             self.touchdown()
+        for particle in landing_fireworks:
+            particle["x"] += particle["vx"] * dt
+            particle["y"] += particle["vy"] * dt
+            particle["life"] -= dt
+        landing_fireworks = [p for p in landing_fireworks if p["life"] > 0]
 
     def ship_points(self):
         cos, sin = math.cos(self.angle), math.sin(self.angle)
@@ -136,6 +156,9 @@ class Game:
             pygame.draw.line(screen, (90, 230, 120), (x1, y), (x2, y), 5)
             label = self.font.render(f"x{mult}", True, (90, 230, 120))
             screen.blit(label, label.get_rect(midtop=((x1 + x2) / 2, y + 8)))
+        for particle in landing_fireworks:
+            radius = max(1, int(5 * particle["life"] / particle["max_life"]))
+            pygame.draw.circle(screen, (255, 220, 80), (int(particle["x"]), int(particle["y"])), radius)
         if self.state != "crashed":
             if self.thrusting:
                 cos, sin = math.cos(self.angle), math.sin(self.angle)
